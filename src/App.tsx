@@ -5,10 +5,25 @@
 
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
-import { ShoppingCart, Menu, X, ChevronRight, Star, ArrowLeft, CreditCard } from 'lucide-react';
+import { ShoppingCart, Menu, X, ChevronRight, Star, ArrowLeft, CreditCard, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Product, CartItem } from './types';
 import { PRODUCTS } from './constants';
+
+const ProductImage = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
+  const [error, setError] = useState(false);
+  const fallback = "https://images.unsplash.com/photo-1584346133934-a3afd2a33c4c?auto=format&fit=crop&q=80&w=800"; // High quality Dutch Oven fallback
+
+  return (
+    <img 
+      src={error ? fallback : src} 
+      alt={alt} 
+      className={className}
+      onError={() => setError(true)}
+      referrerPolicy="no-referrer"
+    />
+  );
+};
 
 // --- Components ---
 
@@ -98,11 +113,10 @@ const HomePage = () => {
       {/* Hero Section */}
       <section className="relative h-screen flex items-center overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img 
-            src="https://picsum.photos/seed/dutch-oven-hero/1920/1080" 
+          <ProductImage 
+            src="https://photos.fife.usercontent.google.com/pw/AP1GczOfMQVHe72TLH45xpKPJ8MHc3XP3FmjbOvTV6HVEHDJ_oo7TwVkzzI=w546-h287-s-no?authuser=0" 
             alt="Hero" 
             className="w-full h-full object-cover brightness-[0.4]"
-            referrerPolicy="no-referrer"
           />
         </div>
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-white">
@@ -176,11 +190,10 @@ const HomePage = () => {
               transition={{ duration: 0.8 }}
               className="relative"
             >
-              <img 
-                src="https://picsum.photos/seed/innovation-iron/800/1000" 
+              <ProductImage 
+                src="https://images.unsplash.com/photo-1591261730799-ee4e6c2d16d7?auto=format&fit=crop&q=80&w=800" 
                 alt="Innovation" 
                 className="rounded-lg shadow-2xl"
-                referrerPolicy="no-referrer"
               />
               <div className="absolute -bottom-8 -left-8 bg-white p-8 shadow-xl max-w-xs hidden md:block">
                 <p className="font-serif italic text-xl mb-2">"The most significant advancement in cookware in 50 years."</p>
@@ -232,11 +245,10 @@ const HomePage = () => {
                 >
                   <Link to={`/product/${product.id}`}>
                     <div className="product-image-container mb-6 relative">
-                      <img 
+                      <ProductImage 
                         src={product.image} 
                         alt={product.name} 
                         className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
                       />
                       <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-widest font-bold">
                         {product.color}
@@ -281,17 +293,16 @@ const ProductDetailPage = ({ addToCart }: { addToCart: (p: Product) => void }) =
           {/* Image Gallery */}
           <div className="space-y-4">
             <div className="bg-gray-50 aspect-square overflow-hidden rounded-lg">
-              <img 
+              <ProductImage 
                 src={product.image} 
                 alt={product.name} 
                 className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
               />
             </div>
             <div className="grid grid-cols-3 gap-4">
               {[1, 2, 3].map(i => (
                 <div key={i} className="bg-gray-50 aspect-square rounded-lg overflow-hidden opacity-60 hover:opacity-100 cursor-pointer transition-opacity">
-                  <img src={`https://picsum.photos/seed/dutch-oven-detail-${i}/400/400`} alt="Detail" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <ProductImage src={`https://picsum.photos/seed/dutch-oven-detail-${i}/400/400`} alt="Detail" className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>
@@ -386,7 +397,7 @@ const CartPage = ({ cart, updateQuantity, removeFromCart }: {
             {cart.map((item) => (
               <div key={item.id} className="bg-white p-6 rounded-lg shadow-sm flex items-center space-x-6">
                 <div className="w-24 h-24 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                  <img src={item.image} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <ProductImage src={item.image} alt={item.name} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-grow">
                   <div className="flex justify-between items-start mb-2">
@@ -447,7 +458,7 @@ const CartPage = ({ cart, updateQuantity, removeFromCart }: {
   );
 };
 
-const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
+const CheckoutPage = ({ cart, clearCart }: { cart: CartItem[], clearCart: () => void }) => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -455,15 +466,95 @@ const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
     phone: '',
     address: '',
     city: '',
-    zip: ''
+    zipCode: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('Redirecting to PayPal...');
+    if (cart.length === 0) return;
+    
+    setIsSubmitting(true);
+
+    // Flattening the payload for better compatibility with Google Sheets scripts
+    const payload = {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phone: formData.phone,
+      address: formData.address,
+      city: formData.city,
+      zipCode: formData.zipCode,
+      productName: cart.map(item => `${item.name} (${item.quantity})`).join(', '),
+      quantity: cart.reduce((acc, item) => acc + item.quantity, 0),
+      totalAmount: total,
+      timestamp: new Date().toLocaleString()
+    };
+
+    try {
+      // Sending data to Google Apps Script. 
+      // Using 'no-cors' mode as Apps Script redirects often cause CORS issues in browsers,
+      // but the data is still sent successfully.
+      await fetch('https://script.google.com/macros/s/AKfycbylFOT5lHrrW7M55l-Fl3egFl4PnLKC_GHmccVK-t3DesQZG8KXPk4dBHElklsMyWY/exec', {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      // Open PayPal in a new tab
+      window.open(`https://paypal.me/DanielWawrzynski/${total}`, '_blank');
+      
+      // Show success message and clear cart
+      setIsSuccess(true);
+      clearCart();
+    } catch (error) {
+      console.error('Checkout submission error:', error);
+      alert('There was an error processing your order. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (isSuccess) {
+    return (
+      <div className="pt-48 pb-24 text-center px-4 min-h-screen bg-gray-50">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md mx-auto bg-white p-12 rounded-lg shadow-sm"
+        >
+          <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-8">
+            <Check size={40} />
+          </div>
+          <h1 className="text-3xl font-serif mb-4">Order Submitted</h1>
+          <p className="text-gray-600 mb-8 leading-relaxed">
+            Thank you! Your order details have been recorded. 
+            A new tab has been opened for your PayPal payment. 
+            If it didn't open automatically, please check your browser's popup blocker.
+          </p>
+          <div className="space-y-4">
+            <a 
+              href={`https://paypal.me/DanielWawrzynski/${total}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full bg-blue-600 text-white px-10 py-4 text-sm uppercase tracking-widest font-bold hover:bg-blue-700 transition-colors"
+            >
+              Open PayPal Again
+            </a>
+            <Link to="/" className="block w-full border border-black text-black px-10 py-4 text-sm uppercase tracking-widest font-bold hover:bg-black hover:text-white transition-all">
+              Return Home
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="pt-32 pb-24 bg-gray-50 min-h-screen">
@@ -484,6 +575,7 @@ const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
                     className="w-full border-b border-gray-200 py-2 focus:border-black outline-none transition-colors"
                     value={formData.firstName}
                     onChange={e => setFormData({...formData, firstName: e.target.value})}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="space-y-2">
@@ -494,6 +586,7 @@ const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
                     className="w-full border-b border-gray-200 py-2 focus:border-black outline-none transition-colors"
                     value={formData.lastName}
                     onChange={e => setFormData({...formData, lastName: e.target.value})}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -505,6 +598,7 @@ const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
                   className="w-full border-b border-gray-200 py-2 focus:border-black outline-none transition-colors"
                   value={formData.email}
                   onChange={e => setFormData({...formData, email: e.target.value})}
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -515,6 +609,7 @@ const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
                   className="w-full border-b border-gray-200 py-2 focus:border-black outline-none transition-colors"
                   value={formData.phone}
                   onChange={e => setFormData({...formData, phone: e.target.value})}
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -525,6 +620,7 @@ const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
                   className="w-full border-b border-gray-200 py-2 focus:border-black outline-none transition-colors"
                   value={formData.address}
                   onChange={e => setFormData({...formData, address: e.target.value})}
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -536,6 +632,7 @@ const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
                     className="w-full border-b border-gray-200 py-2 focus:border-black outline-none transition-colors"
                     value={formData.city}
                     onChange={e => setFormData({...formData, city: e.target.value})}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="space-y-2">
@@ -544,8 +641,9 @@ const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
                     required
                     type="text" 
                     className="w-full border-b border-gray-200 py-2 focus:border-black outline-none transition-colors"
-                    value={formData.zip}
-                    onChange={e => setFormData({...formData, zip: e.target.value})}
+                    value={formData.zipCode}
+                    onChange={e => setFormData({...formData, zipCode: e.target.value})}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -563,9 +661,10 @@ const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
 
               <button 
                 type="submit"
-                className="w-full bg-black text-white py-5 text-sm uppercase tracking-widest font-bold hover:bg-gray-800 transition-colors mt-8"
+                disabled={isSubmitting || cart.length === 0}
+                className="w-full bg-black text-white py-5 text-sm uppercase tracking-widest font-bold hover:bg-gray-800 transition-colors mt-8 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
               >
-                Pay with PayPal (${total})
+                {isSubmitting ? 'Processing...' : `Complete Order ($${total})`}
               </button>
             </form>
           </div>
@@ -579,7 +678,7 @@ const CheckoutPage = ({ cart }: { cart: CartItem[] }) => {
                   <div key={item.id} className="flex justify-between items-center text-sm">
                     <div className="flex items-center space-x-3">
                       <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden">
-                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <ProductImage src={item.image} alt={item.name} className="w-full h-full object-cover" />
                       </div>
                       <div>
                         <p className="font-medium line-clamp-1">{item.name}</p>
@@ -642,6 +741,10 @@ export default function App() {
     setCart(prev => prev.filter(item => item.id !== id));
   };
 
+  const clearCart = () => {
+    setCart([]);
+  };
+
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
@@ -654,7 +757,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/product/:id" element={<ProductDetailPage addToCart={addToCart} />} />
             <Route path="/cart" element={<CartPage cart={cart} updateQuantity={updateQuantity} removeFromCart={removeFromCart} />} />
-            <Route path="/checkout" element={<CheckoutPage cart={cart} />} />
+            <Route path="/checkout" element={<CheckoutPage cart={cart} clearCart={clearCart} />} />
           </Routes>
         </main>
 
